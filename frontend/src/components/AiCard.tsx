@@ -46,8 +46,6 @@ export function AiCard({ analysis, loading, error, onGetPlan, onChat }: Props) {
 
   if (!analysis) return null
 
-  const isTemplate = analysis.advisorySource === 'template'
-
   return (
     <div className="card overflow-hidden">
       <div
@@ -60,11 +58,6 @@ export function AiCard({ analysis, loading, error, onGetPlan, onChat }: Props) {
       >
         <Bot size={18} className="text-[#0B5C8A] dark:text-blue-400" aria-hidden />
         <span className="font-semibold text-sm flex-1">AI Analysis</span>
-        {isTemplate && (
-          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-            Template
-          </span>
-        )}
         {analysis.fromCache && (
           <span className="text-xs text-gray-400">cached</span>
         )}
@@ -73,12 +66,6 @@ export function AiCard({ analysis, loading, error, onGetPlan, onChat }: Props) {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-gray-100 dark:border-gray-700 pt-3">
-          {isTemplate && (
-            <div className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded p-2">
-              {analysis.disclaimer || '⚠️ Template advice — AI unavailable.'}
-            </div>
-          )}
-
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
             {analysis.summary}
           </p>

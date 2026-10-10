@@ -143,11 +143,6 @@ export function PlanPage() {
         <div className="space-y-6">
           <div className="card p-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">{plan.situation}</p>
-            {plan.advisorySource === 'template' && (
-              <p className="text-xs text-amber-600 mt-2">
-                ⚠️ Template advice — AI unavailable. Suggestions based on fixed rules.
-              </p>
-            )}
           </div>
 
           {tiers.map(tier => {

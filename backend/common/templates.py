@@ -6,10 +6,7 @@ Clearly marked as template advice.
 from typing import Optional
 
 
-DISCLAIMER = (
-    "⚠️ Template advice — AI unavailable. "
-    "These suggestions are based on fixed rules, not AI analysis."
-)
+DISCLAIMER = ""  # Warning banner removed from UI; template fallback works silently
 
 
 def template_analyze(well: dict, readings: list[dict], peers_summary: dict) -> dict:
