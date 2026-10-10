@@ -10,9 +10,9 @@ from typing import Optional
 
 from common.ddb import meta_table
 
-# Daily caps
-AI_DAILY_TOTAL_CAP = 300
-AI_DAILY_IP_CAP = 30
+# Daily caps — raised for demo use
+AI_DAILY_TOTAL_CAP = 500
+AI_DAILY_IP_CAP = 200
 
 
 def _hash_ip(ip: str) -> str:
