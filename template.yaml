@@ -25,6 +25,15 @@ Parameters:
     Type: String
     Default: borewell-ledger-ip-salt-2024
     Description: Salt for hashing client IPs (non-secret, just a stable random string)
+  GeminiApiKey:
+    Type: String
+    Default: ""
+    Description: Google Gemini API key (free tier). Set this to enable AI. Leave blank to use Bedrock or template fallback.
+    NoEcho: true
+  GeminiModel:
+    Type: String
+    Default: gemini-2.0-flash-lite
+    Description: Gemini model name (gemini-2.0-flash-lite is free)
 
 Globals:
   Function:
@@ -43,6 +52,8 @@ Globals:
         BEDROCK_REGION: !Ref BedrockRegion
         IP_SALT: !Ref IpSaltParameter
         ENVIRONMENT: !Ref Environment
+        GEMINI_API_KEY: !Ref GeminiApiKey
+        GEMINI_MODEL: !Ref GeminiModel
     Layers: []
 
 Resources:
