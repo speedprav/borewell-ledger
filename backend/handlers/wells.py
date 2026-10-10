@@ -59,22 +59,40 @@ def _recompute_well(well_id: str, all_wells: list[dict] = None) -> dict:
         latest_date = this_well.get("latestDate")
 
     table = wells_table()
-    update_expr = (
-        "SET slopeMPerMonth = :slope, #status = :status, "
-        "peerMedian = :pm, peerCount = :pc, "
-        "latestDepthM = :ld, latestDate = :ldate, updatedAt = :ua"
-    )
-    expr_values = {
-        ":slope": Decimal(str(slope)) if slope is not None else None,
+    now_str = datetime.utcnow().isoformat()
+
+    # Build SET and REMOVE expressions separately to handle None values
+    set_parts = ["#status = :status", "peerCount = :pc", "updatedAt = :ua"]
+    expr_values: dict = {
         ":status": status,
-        ":pm": Decimal(str(peer_median)) if peer_median is not None else None,
         ":pc": peer_info.get("peerCount", 0),
-        ":ld": Decimal(str(latest_depth)) if latest_depth is not None else None,
-        ":ldate": latest_date,
-        ":ua": datetime.utcnow().isoformat()
+        ":ua": now_str
     }
-    # Remove None values from DynamoDB update
-    expr_values = {k: v for k, v in expr_values.items() if v is not None}
+    remove_parts = []
+
+    if slope is not None:
+        set_parts.append("slopeMPerMonth = :slope")
+        expr_values[":slope"] = Decimal(str(slope))
+    else:
+        remove_parts.append("slopeMPerMonth")
+
+    if peer_median is not None:
+        set_parts.append("peerMedian = :pm")
+        expr_values[":pm"] = Decimal(str(peer_median))
+    else:
+        remove_parts.append("peerMedian")
+
+    if latest_depth is not None:
+        set_parts.append("latestDepthM = :ld")
+        expr_values[":ld"] = Decimal(str(latest_depth))
+
+    if latest_date is not None:
+        set_parts.append("latestDate = :ldate")
+        expr_values[":ldate"] = latest_date
+
+    update_expr = "SET " + ", ".join(set_parts)
+    if remove_parts:
+        update_expr += " REMOVE " + ", ".join(remove_parts)
 
     table.update_item(
         Key={"wellId": well_id},

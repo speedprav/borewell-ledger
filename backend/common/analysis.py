@@ -75,11 +75,13 @@ def compute_slope_mpm(readings: list[dict]) -> Optional[float]:
 def classify_status(slope: Optional[float], peer_median: Optional[float]) -> str:
     """
     Returns "NORMAL", "WATCH", "CRITICAL", or "NOT_ENOUGH_DATA".
+    Handles DynamoDB Decimal types by converting to float.
     """
     if slope is None:
         return "NOT_ENOUGH_DATA"
 
-    base = max(peer_median if peer_median is not None else 0.0, 0.1)
+    slope = float(slope)
+    base = max(float(peer_median) if peer_median is not None else 0.0, 0.1)
 
     if slope >= STATUS_CRITICAL_SLOPE and slope >= STATUS_CRITICAL_MULTIPLIER * base:
         return "CRITICAL"
@@ -92,6 +94,7 @@ def compute_peer_stats(well: dict, all_wells: list[dict]) -> dict:
     """
     Returns {"peerMedian": float|None, "peerCount": int, "peers": [...]}
     Peers: other wells within PEER_RADIUS_KM with a computed slope.
+    Handles DynamoDB Decimal types by converting to float.
     """
     from common.geo import haversine_km
 
@@ -102,12 +105,15 @@ def compute_peer_stats(well: dict, all_wells: list[dict]) -> dict:
         if w.get("slopeMPerMonth") is None:
             continue
         try:
-            dist = haversine_km(well["lat"], well["lon"], w["lat"], w["lon"])
-        except (KeyError, TypeError):
+            dist = haversine_km(
+                float(well["lat"]), float(well["lon"]),
+                float(w["lat"]), float(w["lon"])
+            )
+        except (KeyError, TypeError, ValueError):
             continue
         if dist <= PEER_RADIUS_KM:
             peers.append({"wellId": w["wellId"], "distKm": round(dist, 2),
-                          "slope": w["slopeMPerMonth"]})
+                          "slope": float(w["slopeMPerMonth"])})
 
     if len(peers) < MIN_PEERS:
         return {"peerMedian": None, "peerCount": len(peers), "peers": peers}
@@ -115,9 +121,9 @@ def compute_peer_stats(well: dict, all_wells: list[dict]) -> dict:
     slopes = sorted(p["slope"] for p in peers)
     n = len(slopes)
     if n % 2 == 1:
-        median = slopes[n // 2]
+        median = float(slopes[n // 2])
     else:
-        median = (slopes[n // 2 - 1] + slopes[n // 2]) / 2.0
+        median = (float(slopes[n // 2 - 1]) + float(slopes[n // 2])) / 2.0
 
     return {"peerMedian": round(median, 4), "peerCount": n, "peers": peers}
 
@@ -129,9 +135,13 @@ def compute_dryout_estimate(pump_depth_m: Optional[float],
     Returns {"monthsLow": float, "monthsHigh": float, "label": str}
     or None if not computable.
     Server-side only, never LLM-generated.
+    Handles DynamoDB Decimal types by converting to float.
     """
     if pump_depth_m is None or latest_depth_m is None or slope is None:
         return None
+    pump_depth_m = float(pump_depth_m)
+    latest_depth_m = float(latest_depth_m)
+    slope = float(slope)
     if slope <= 0:
         return None
     remaining = pump_depth_m - latest_depth_m
@@ -150,6 +160,7 @@ def detect_area_alerts(wells_with_slopes: list[dict]) -> list[dict]:
     """
     Group by locality. If >= AREA_ALERT_MIN_WELLS wells have slopes and
     median >= AREA_ALERT_MEDIAN_SLOPE, return an area alert dict.
+    Handles DynamoDB Decimal types by converting to float.
     """
     from collections import defaultdict
     import statistics
@@ -161,7 +172,7 @@ def detect_area_alerts(wells_with_slopes: list[dict]) -> list[dict]:
 
     area_alerts = []
     for locality, wells in by_locality.items():
-        slopes = [w["slopeMPerMonth"] for w in wells]
+        slopes = [float(w["slopeMPerMonth"]) for w in wells]
         if len(slopes) < AREA_ALERT_MIN_WELLS:
             continue
         med = statistics.median(slopes)
@@ -169,8 +180,8 @@ def detect_area_alerts(wells_with_slopes: list[dict]) -> list[dict]:
             continue
 
         # Centroid
-        lats = [w["lat"] for w in wells]
-        lons = [w["lon"] for w in wells]
+        lats = [float(w["lat"]) for w in wells]
+        lons = [float(w["lon"]) for w in wells]
         centroid_lat = round(sum(lats) / len(lats), 4)
         centroid_lon = round(sum(lons) / len(lons), 4)
 
