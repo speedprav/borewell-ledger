@@ -1,0 +1,14 @@
+version = 0.1
+[default]
+[default.global.parameters]
+stack_name = "borewell-ledger"
+region = "ap-south-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+
+[default.deploy.parameters]
+parameter_overrides = [
+  "AlertEmail=pravinchoudhary3108@gmail.com",
+  "Environment=prod"
+]

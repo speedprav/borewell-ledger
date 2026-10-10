@@ -1,0 +1,44 @@
+# Environment and secrets
+.env
+.env.*
+*.env
+samconfig.toml.secret
+
+# AWS SAM build output
+.aws-sam/
+samconfig.toml.bak
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Build artifacts
+frontend/dist/
+frontend/build/
+
+# Logs
+*.log
+
+# Coverage
+htmlcov/
+.coverage
+
+# Deployment outputs
+outputs.json

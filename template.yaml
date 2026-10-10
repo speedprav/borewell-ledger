@@ -1,0 +1,523 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Borewell Ledger - Community Groundwater Early-Warning Platform
+  Environmental Hacks, WeMakeDevs x AWS Hackathon
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Default: pravinchoudhary3108@gmail.com
+    Description: Email address for alert notifications
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-micro-v1:0
+    Description: Bedrock model ID for AI features
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for Bedrock API calls
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, dev]
+  IpSaltParameter:
+    Type: String
+    Default: borewell-ledger-ip-salt-2024
+    Description: Salt for hashing client IPs (non-secret, just a stable random string)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        WELLS_TABLE: !Ref WellsTable
+        READINGS_TABLE: !Ref ReadingsTable
+        ALERTS_TABLE: !Ref AlertsTable
+        META_TABLE: !Ref MetaTable
+        SNS_TOPIC_ARN: !Ref AlertsTopic
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref BedrockRegion
+        IP_SALT: !Ref IpSaltParameter
+        ENVIRONMENT: !Ref Environment
+    Layers: []
+
+Resources:
+
+  # ─── DynamoDB Tables ───────────────────────────────────────────────────────
+
+  WellsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub BorewellLedger-Wells-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: wellId
+          AttributeType: S
+        - AttributeName: locality
+          AttributeType: S
+      KeySchema:
+        - AttributeName: wellId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: LocalityIndex
+          KeySchema:
+            - AttributeName: locality
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+
+  ReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub BorewellLedger-Readings-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: wellId
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: wellId
+          KeyType: HASH
+        - AttributeName: date
+          KeyType: RANGE
+
+  AlertsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub BorewellLedger-Alerts-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: alertId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: alertId
+          KeyType: HASH
+
+  MetaTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub BorewellLedger-Meta-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: key
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ─── SNS Topic ─────────────────────────────────────────────────────────────
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub BorewellLedger-Alerts-${Environment}
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  # ─── S3 Bucket for Frontend ────────────────────────────────────────────────
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub borewell-ledger-frontend-${AWS::AccountId}-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+  # ─── CloudFront OAC + Distribution ────────────────────────────────────────
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub BorewellLedger-OAC-${Environment}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          AllowedMethods: [GET, HEAD, OPTIONS]
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  # ─── Lambda IAM Role ───────────────────────────────────────────────────────
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub BorewellLedger-Lambda-Role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !GetAtt WellsTable.Arn
+                  - !Sub ${WellsTable.Arn}/index/*
+                  - !GetAtt ReadingsTable.Arn
+                  - !GetAtt AlertsTable.Arn
+                  - !GetAtt MetaTable.Arn
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref AlertsTopic
+        - PolicyName: BedrockInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: "*"
+
+  # ─── API Gateway HTTP API ──────────────────────────────────────────────────
+
+  BorewellApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - X-Forwarded-For
+        MaxAge: 86400
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+
+  # ─── Lambda Functions ──────────────────────────────────────────────────────
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/health.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /health
+            Method: GET
+
+  MapFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/map.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /map
+            Method: GET
+
+  WellsGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/wells.handler_get
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /wells/{id}
+            Method: GET
+
+  WellsCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/wells.handler_create
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /wells
+            Method: POST
+
+  ReadingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/readings.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /readings
+            Method: POST
+
+  AlertsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/alerts.handler_list
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /alerts
+            Method: GET
+
+  AlertsPatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/alerts.handler_patch
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /alerts/{id}
+            Method: PATCH
+
+  CommunityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/community.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /community
+            Method: GET
+
+  AdminRunAnalysisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/admin.handler_run_analysis
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /admin/run-analysis
+            Method: POST
+
+  AnalyzerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/analyzer.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Events:
+        Schedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "rate(1 day)"
+            Description: "Run Borewell analyzer daily"
+
+  AiAnalyzeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/ai_analyze.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 25
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /ai/analyze
+            Method: POST
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 2
+
+  AiPlanFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/ai_plan.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 25
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /ai/plan
+            Method: POST
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 2
+
+  AiChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers/ai_chat.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 512
+      Timeout: 25
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BorewellApi
+            Path: /ai/chat
+            Method: POST
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 2
+
+  # ─── CloudWatch Log Groups (14-day retention) ──────────────────────────────
+
+  HealthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${HealthFunction}
+      RetentionInDays: 14
+
+  MapFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${MapFunction}
+      RetentionInDays: 14
+
+  AnalyzerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AnalyzerFunction}
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub https://${BorewellApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub BorewellLedger-ApiUrl-${Environment}
+
+  CloudFrontUrl:
+    Description: CloudFront Distribution URL
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+    Export:
+      Name: !Sub BorewellLedger-CloudFrontUrl-${Environment}
+
+  FrontendBucketName:
+    Description: S3 Bucket for frontend
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub BorewellLedger-FrontendBucket-${Environment}
+
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub BorewellLedger-CloudFrontId-${Environment}
+
+  WellsTableName:
+    Value: !Ref WellsTable
+  ReadingsTableName:
+    Value: !Ref ReadingsTable
+  AlertsTableName:
+    Value: !Ref AlertsTable
+  MetaTableName:
+    Value: !Ref MetaTable
+  SnsTopicArn:
+    Value: !Ref AlertsTopic
