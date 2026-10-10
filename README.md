@@ -16,14 +16,14 @@ All data currently displayed is **simulated demo data** for demonstration purpos
 
 ## Live URLs
 
-> Filled in after `scripts/deploy.sh` runs:
-
 | | |
 |---|---|
-| **Live App** | `https://<cloudfront-domain>.cloudfront.net` |
-| **API URL** | `https://<api-id>.execute-api.ap-south-1.amazonaws.com/prod` |
+| **Live App (HTTP)** | http://borewell-ledger-frontend-796973511540-prod.s3-website.ap-south-1.amazonaws.com |
+| **API URL** | https://r0kskruke2.execute-api.ap-south-1.amazonaws.com/prod |
 | **Region** | `ap-south-1` (Bedrock: `us-east-1`) |
 | **Bedrock Model** | `amazon.nova-micro-v1:0` |
+
+> **Note on HTTPS / CloudFront**: The app is currently served over HTTP from S3 static website hosting. A CloudFront distribution (HTTPS, OAC, Price Class 100) is defined in `template.yaml` and ready to deploy, but requires AWS account verification (support case submitted). Once verified, run `sam deploy` to enable CloudFront and update this URL. GPS ("Use My Location") requires HTTPS and will work automatically after CloudFront is active.
 
 ---
 
