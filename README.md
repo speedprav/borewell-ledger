@@ -154,30 +154,11 @@ These thresholds are **starting assumptions**, clearly labeled as such in the UI
 
 ---
 
-## Human-Only Steps
-
-After `scripts/deploy.sh` completes, you must:
-
-1. **Confirm SNS email subscription** — Check `pravinchoudhary3108@gmail.com` for an AWS SNS confirmation email and click the link to enable alert notifications.
-2. **Push to GitHub** — `git push origin main` to https://github.com/speedprav/borewell-ledger (you need to create the repo first if not done).
-
----
-
 ## Tear Down
 
 ```bash
 bash scripts/teardown.sh
 ```
-
-Empties the S3 bucket and deletes the CloudFormation stack. The AWS Budget is **intentionally not deleted** — it's a cost safeguard independent of the app stack.
-
-To also delete the budget:
-```bash
-ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-aws budgets delete-budget --account-id $ACCOUNT --budget-name BorewellLedger-Budget
-```
-
----
 
 ## AI Coding Tools Used
 
