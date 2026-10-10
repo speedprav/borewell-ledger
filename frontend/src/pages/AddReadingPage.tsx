@@ -54,7 +54,16 @@ export function AddReadingPage() {
     }).catch(() => {})
   }, [])
 
+  // GPS requires HTTPS — detect HTTP upfront before calling the API
+  const isHttp = typeof window !== 'undefined' && window.location.protocol === 'http:'
+
   const handleUseMyLocation = () => {
+    // HTTP pages: browser blocks geolocation silently (no permission prompt shown)
+    if (isHttp) {
+      setLocationState('error')
+      showToast('GPS requires a secure (HTTPS) connection. Please enter coordinates manually below.', 'error')
+      return
+    }
     if (!navigator.geolocation) {
       showToast('Location not available on this device', 'error')
       setLocationState('error')
@@ -73,10 +82,10 @@ export function AddReadingPage() {
       err => {
         setLocationState('error')
         const msg = err.code === 1
-          ? 'Location permission denied. Please allow location access in your browser settings.'
+          ? 'Location permission denied. Please allow location access in your browser settings, or enter coordinates manually.'
           : err.code === 2
-          ? 'Location unavailable. Check your GPS or network connection.'
-          : 'Location request timed out. Please try again.'
+          ? 'Location unavailable. Check your GPS or network connection, or enter coordinates manually.'
+          : 'Location request timed out. Please try again or enter coordinates manually.'
         showToast(msg, 'error')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -302,26 +311,42 @@ export function AddReadingPage() {
 
                 {/* Use My Location button — primary action */}
                 {locationState !== 'success' && (
-                  <button
-                    onClick={handleUseMyLocation}
-                    disabled={locationState === 'loading'}
-                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium text-sm transition-all min-h-[52px]
-                      ${locationState === 'loading'
-                        ? 'border-[#0B5C8A] bg-[#0B5C8A]/5 text-[#0B5C8A] cursor-wait'
-                        : locationState === 'error'
-                        ? 'border-red-300 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 dark:border-red-700'
-                        : 'border-[#0B5C8A] bg-[#0B5C8A] text-white hover:bg-[#094a70] active:scale-95'
-                      }`}
-                    aria-label="Use current GPS location"
-                  >
-                    {locationState === 'loading' ? (
-                      <><Loader2 size={18} className="animate-spin" aria-hidden /> Detecting location…</>
-                    ) : locationState === 'error' ? (
-                      <><RotateCcw size={18} aria-hidden /> Try again</>
-                    ) : (
-                      <><Navigation size={18} aria-hidden /> Use My Current Location</>
-                    )}
-                  </button>
+                  isHttp ? (
+                    /* HTTP: GPS is always blocked — show informational banner, not a broken button */
+                    <div className="w-full rounded-xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-amber-800 dark:text-amber-300">GPS unavailable on HTTP</p>
+                          <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
+                            Browsers require a secure HTTPS connection for location access.
+                            Please enter your coordinates manually using the field below.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleUseMyLocation}
+                      disabled={locationState === 'loading'}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium text-sm transition-all min-h-[52px]
+                        ${locationState === 'loading'
+                          ? 'border-[#0B5C8A] bg-[#0B5C8A]/5 text-[#0B5C8A] cursor-wait'
+                          : locationState === 'error'
+                          ? 'border-red-300 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 dark:border-red-700'
+                          : 'border-[#0B5C8A] bg-[#0B5C8A] text-white hover:bg-[#094a70] active:scale-95'
+                        }`}
+                      aria-label="Use current GPS location"
+                    >
+                      {locationState === 'loading' ? (
+                        <><Loader2 size={18} className="animate-spin" aria-hidden /> Detecting location…</>
+                      ) : locationState === 'error' ? (
+                        <><RotateCcw size={18} aria-hidden /> Try again</>
+                      ) : (
+                        <><Navigation size={18} aria-hidden /> Use My Current Location</>
+                      )}
+                    </button>
+                  )
                 )}
 
                 {/* Success state — show coordinates card with map preview */}
@@ -390,10 +415,10 @@ export function AddReadingPage() {
                   </div>
                 )}
 
-                {/* Manual entry fallback — collapsed by default */}
-                <details className="mt-2">
-                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-200 select-none">
-                    Enter coordinates manually instead
+                {/* Manual entry fallback — auto-open on HTTP, collapsed on HTTPS */}
+                <details className="mt-2" open={isHttp}>
+                  <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none font-medium">
+                    {isHttp ? 'Enter coordinates manually' : 'Enter coordinates manually instead'}
                   </summary>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     <div>
