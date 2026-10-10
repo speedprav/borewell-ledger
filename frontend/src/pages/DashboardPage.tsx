@@ -54,11 +54,12 @@ export function DashboardPage() {
       const demo = mapData.wells.some(w => w.source === 'seed')
       setHasDemo(demo)
 
-      // Load AI insight for most urgent followed well
+      // Use followed wells OR most urgent wells from all if none followed
       const followedWells = mapData.wells.filter(w => followed.includes(w.wellId))
-      const urgent = followedWells.find(w => w.status === 'CRITICAL')
-        || followedWells.find(w => w.status === 'WATCH')
-        || followedWells[0]
+      const displayWells = followedWells.length > 0 ? followedWells : mapData.wells
+      const urgent = displayWells.find(w => w.status === 'CRITICAL')
+        || displayWells.find(w => w.status === 'WATCH')
+        || displayWells[0]
 
       if (urgent) {
         setAnalysisLoading(true)
@@ -77,7 +78,7 @@ export function DashboardPage() {
       if (result.status === 'cooldown') {
         showToast(result.message, 'info')
       } else {
-        showToast('Analysis complete. Refresh to see updated statuses.', 'success')
+        showToast('Analysis complete. Status updated!', 'success')
       }
     } catch {
       showToast('Analysis failed. Try again.', 'error')
@@ -86,7 +87,11 @@ export function DashboardPage() {
     }
   }
 
-  const followedWells = wells.filter(w => followed.includes(w.wellId))
+  // Show followed wells stats, or fall back to ALL wells so dashboard is never blank
+  const followedWells = followed.length > 0
+    ? wells.filter(w => followed.includes(w.wellId))
+    : wells
+  const isShowingAll = followed.length === 0
   const needsAttention = followedWells.filter(w => w.status === 'CRITICAL' || w.status === 'WATCH')
   const avgRate = followedWells
     .filter(w => w.slopeMPerMonth !== null && w.slopeMPerMonth !== undefined)
@@ -107,8 +112,8 @@ export function DashboardPage() {
           {name ? `Hello, ${name}` : 'Dashboard'}
         </h1>
         <p className="text-sm text-gray-500">
-          {followed.length === 0
-            ? 'Follow wells to track them here.'
+          {isShowingAll
+            ? `Showing community overview — ${wells.length} wells in your area`
             : `Tracking ${followed.length} well${followed.length !== 1 ? 's' : ''}`}
         </p>
       </div>
@@ -121,21 +126,23 @@ export function DashboardPage() {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <StatCard
-            label="Wells followed"
-            value={followed.length}
+            label={isShowingAll ? 'Total wells' : 'Wells followed'}
+            value={isShowingAll ? wells.length : followed.length}
+            sub={isShowingAll ? 'in community' : undefined}
             icon={Droplets}
             color="#0B5C8A"
           />
           <StatCard
             label="Needs attention"
             value={needsAttention.length}
-            sub={needsAttention.length > 0 ? 'Critical or Watch status' : 'All clear'}
+            sub={needsAttention.length > 0 ? 'Critical or Watch' : 'All clear ✓'}
             icon={AlertTriangle}
             color={needsAttention.length > 0 ? '#D97706' : '#16A34A'}
           />
           <StatCard
             label="Avg decline rate"
             value={followedWells.length > 0 && avgRate !== 0 ? `${avgRate.toFixed(2)} m/mo` : '—'}
+            sub={isShowingAll ? 'community average' : undefined}
             icon={TrendingDown}
             color="#0E8FA3"
           />
@@ -239,20 +246,21 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Personalise prompt when viewing community overview */}
       {!loading && followed.length === 0 && (
-        <div className="card p-8 text-center">
-          <Droplets size={32} className="mx-auto text-gray-300 mb-3" />
-          <h3 className="font-semibold text-gray-600 mb-1">No wells followed yet</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Add a reading or explore demo data to get started.
+        <div className="card p-4 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+          <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
+            📍 Viewing community overview
           </p>
-          <div className="flex gap-2 justify-center">
-            <button onClick={() => navigate('/add')} className="btn-primary text-sm">
-              Add Reading
+          <p className="text-xs text-blue-600 dark:text-blue-300 mb-3">
+            Follow specific wells to personalise this dashboard with your own data.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/map')} className="btn-primary text-xs py-1.5">
+              Find wells on map
             </button>
-            <button onClick={() => navigate('/map')} className="btn-secondary text-sm">
-              Explore Map
+            <button onClick={() => navigate('/add')} className="btn-secondary text-xs py-1.5">
+              Add your well
             </button>
           </div>
         </div>

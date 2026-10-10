@@ -107,30 +107,43 @@ def run_analysis() -> dict:
 
         # Persist updated well
         now = datetime.now(timezone.utc).isoformat()
+
+        # Build SET and REMOVE clauses separately so None values are properly handled
+        set_parts = ["#status = :status", "peerCount = :pc", "updatedAt = :ua"]
+        expr_values = {
+            ":status": new_status,
+            ":pc": peer_info.get("peerCount", 0),
+            ":ua": now
+        }
+        remove_parts = []
+
+        if slope is not None:
+            set_parts.append("slopeMPerMonth = :slope")
+            expr_values[":slope"] = Decimal(str(round(slope, 4)))
+        else:
+            remove_parts.append("slopeMPerMonth")
+
+        if peer_median is not None:
+            set_parts.append("peerMedian = :pm")
+            expr_values[":pm"] = Decimal(str(round(peer_median, 4)))
+        else:
+            remove_parts.append("peerMedian")
+
+        if latest_depth is not None:
+            set_parts.append("latestDepthM = :ld")
+            set_parts.append("latestDate = :ldate")
+            expr_values[":ld"] = Decimal(str(latest_depth))
+            expr_values[":ldate"] = latest_date
+
+        update_expr = "SET " + ", ".join(set_parts)
+        if remove_parts:
+            update_expr += " REMOVE " + ", ".join(remove_parts)
+
         update_kwargs = {
             "Key": {"wellId": well_id},
-            "UpdateExpression": (
-                "SET slopeMPerMonth = :slope, #status = :status, "
-                "peerMedian = :pm, peerCount = :pc, updatedAt = :ua"
-            ),
-            "ExpressionAttributeNames": {"#st": "status", "#status": "status"},
-            "ExpressionAttributeValues": {
-                ":slope": Decimal(str(slope)) if slope is not None else None,
-                ":status": new_status,
-                ":pm": Decimal(str(peer_median)) if peer_median is not None else None,
-                ":pc": peer_info.get("peerCount", 0),
-                ":ua": now
-            }
-        }
-        if latest_depth is not None:
-            update_kwargs["UpdateExpression"] += ", latestDepthM = :ld, latestDate = :ldate"
-            update_kwargs["ExpressionAttributeValues"][":ld"] = Decimal(str(latest_depth))
-            update_kwargs["ExpressionAttributeValues"][":ldate"] = latest_date
-
-        # Remove None values
-        update_kwargs["ExpressionAttributeValues"] = {
-            k: v for k, v in update_kwargs["ExpressionAttributeValues"].items()
-            if v is not None
+            "UpdateExpression": update_expr,
+            "ExpressionAttributeNames": {"#status": "status"},
+            "ExpressionAttributeValues": expr_values
         }
 
         try:
