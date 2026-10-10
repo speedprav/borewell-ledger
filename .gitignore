@@ -42,3 +42,6 @@ htmlcov/
 
 # Deployment outputs
 outputs.json
+
+# Amplify deployment zip
+amplify-deploy.zip
