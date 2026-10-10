@@ -6,7 +6,7 @@ import re
 from datetime import date, timedelta
 from typing import Optional
 
-from backend.common.geo import is_inside_india
+from common.geo import is_inside_india
 
 
 DEPTH_MIN = 0.0

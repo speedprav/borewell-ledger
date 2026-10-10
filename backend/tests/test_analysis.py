@@ -4,7 +4,9 @@ Tests slope math, status thresholds, peer selection, area alerts, validation, dr
 """
 import sys
 import os
+# Add backend/ as root so imports work without 'backend.' prefix
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 import pytest
 from datetime import date, timedelta

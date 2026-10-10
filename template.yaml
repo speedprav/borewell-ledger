@@ -131,11 +131,15 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub borewell-ledger-frontend-${AWS::AccountId}-${Environment}
+      # S3 static website hosting (used until CloudFront account verification)
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
 
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -144,52 +148,9 @@ Resources:
       PolicyDocument:
         Statement:
           - Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
+            Principal: "*"
             Action: s3:GetObject
             Resource: !Sub ${FrontendBucket.Arn}/*
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
-
-  # ─── CloudFront OAC + Distribution ────────────────────────────────────────
-
-  CloudFrontOAC:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub BorewellLedger-OAC-${Environment}
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        PriceClass: PriceClass_100
-        DefaultRootObject: index.html
-        Origins:
-          - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !Ref CloudFrontOAC
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
-          AllowedMethods: [GET, HEAD, OPTIONS]
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
 
   # ─── Lambda IAM Role ───────────────────────────────────────────────────────
 
@@ -493,23 +454,17 @@ Outputs:
     Export:
       Name: !Sub BorewellLedger-ApiUrl-${Environment}
 
-  CloudFrontUrl:
-    Description: CloudFront Distribution URL
-    Value: !Sub https://${CloudFrontDistribution.DomainName}
+  FrontendUrl:
+    Description: S3 Static Website URL (CloudFront pending account verification)
+    Value: !Sub http://${FrontendBucket}.s3-website.${AWS::Region}.amazonaws.com
     Export:
-      Name: !Sub BorewellLedger-CloudFrontUrl-${Environment}
+      Name: !Sub BorewellLedger-FrontendUrl-${Environment}
 
   FrontendBucketName:
     Description: S3 Bucket for frontend
     Value: !Ref FrontendBucket
     Export:
       Name: !Sub BorewellLedger-FrontendBucket-${Environment}
-
-  CloudFrontDistributionId:
-    Description: CloudFront Distribution ID
-    Value: !Ref CloudFrontDistribution
-    Export:
-      Name: !Sub BorewellLedger-CloudFrontId-${Environment}
 
   WellsTableName:
     Value: !Ref WellsTable

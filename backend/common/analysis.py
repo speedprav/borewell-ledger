@@ -93,7 +93,7 @@ def compute_peer_stats(well: dict, all_wells: list[dict]) -> dict:
     Returns {"peerMedian": float|None, "peerCount": int, "peers": [...]}
     Peers: other wells within PEER_RADIUS_KM with a computed slope.
     """
-    from backend.common.geo import haversine_km
+    from common.geo import haversine_km
 
     peers = []
     for w in all_wells:

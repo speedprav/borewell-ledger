@@ -1,4 +1,4 @@
 {
-  "apiUrl": "http://localhost:3001",
-  "version": "dev"
+  "apiUrl": "https://r0kskruke2.execute-api.ap-south-1.amazonaws.com/prod",
+  "version": "1.0.0"
 }

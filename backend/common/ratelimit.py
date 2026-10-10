@@ -8,7 +8,7 @@ import hashlib
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from backend.common.ddb import meta_table
+from common.ddb import meta_table
 
 # Daily caps
 AI_DAILY_TOTAL_CAP = 300

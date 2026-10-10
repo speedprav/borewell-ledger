@@ -13,7 +13,7 @@ from datetime import date
 import boto3
 from botocore.exceptions import ClientError
 
-from backend.common.templates import template_analyze, template_plan, template_chat
+from common.templates import template_analyze, template_plan, template_chat
 
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
@@ -51,7 +51,7 @@ def _make_cache_key(prefix: str, well_id: str, latest_date: str, language: str) 
 def _get_cached_response(cache_key: str) -> Optional[dict]:
     """Check Meta table for a cached AI response."""
     try:
-        from backend.common.ddb import meta_table
+        from common.ddb import meta_table
         table = meta_table()
         resp = table.get_item(Key={"key": f"ai:cache:{cache_key}"})
         item = resp.get("Item")
@@ -65,7 +65,7 @@ def _get_cached_response(cache_key: str) -> Optional[dict]:
 def _set_cached_response(cache_key: str, response: dict) -> None:
     """Cache AI response in Meta table with 24-hour TTL."""
     try:
-        from backend.common.ddb import meta_table
+        from common.ddb import meta_table
         table = meta_table()
         ttl = int(time.time()) + 86400  # 24 hours
         table.put_item(Item={
