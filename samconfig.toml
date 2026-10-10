@@ -10,5 +10,8 @@ resolve_s3 = true
 [default.deploy.parameters]
 parameter_overrides = [
   "AlertEmail=pravinchoudhary3108@gmail.com",
-  "Environment=prod"
+  "Environment=prod",
+  "GeminiModel=gemini-2.5-flash-lite"
 ]
+# Note: GeminiApiKey is passed via --parameter-overrides on the command line (not stored here)
+# Command: sam deploy --parameter-overrides "GeminiApiKey=<your-key>"

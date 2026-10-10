@@ -34,9 +34,9 @@ GEMINI_API_BASE  = "https://generativelanguage.googleapis.com/v1beta/models"
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
 BEDROCK_REGION   = os.environ.get("BEDROCK_REGION", "us-east-1")
 
-MAX_TOKENS_ANALYZE = 450
-MAX_TOKENS_PLAN    = 450
-MAX_TOKENS_CHAT    = 350
+MAX_TOKENS_ANALYZE = 600
+MAX_TOKENS_PLAN    = 800
+MAX_TOKENS_CHAT    = 400
 TEMPERATURE        = 0.3
 
 SYSTEM_PROMPT = (
@@ -340,7 +340,7 @@ Return ONLY valid JSON:
   ]
 }}
 
-Include 3-4 measures per tier. Adapt to role: {role}. Quantities are indicative ranges only."""
+Include exactly 2 measures per tier (6 total). Adapt to role: {role}. Quantities are indicative ranges only."""
 
     for provider, call_fn in [("gemini", lambda: _gemini_call(prompt, MAX_TOKENS_PLAN)),
                                ("bedrock", lambda: _bedrock_call(prompt, MAX_TOKENS_PLAN))]:
