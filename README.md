@@ -18,7 +18,7 @@ All data currently displayed is **simulated demo data** for demonstration purpos
 
 | | |
 |---|---|
-| **Live App (HTTP)** | http://borewell-ledger-frontend-796973511540-prod.s3-website.ap-south-1.amazonaws.com |
+| **Live App (HTTPS)** | https://main.d3kbqo47f82ouc.amplifyapp.com |
 | **API URL** | https://r0kskruke2.execute-api.ap-south-1.amazonaws.com/prod |
 | **Region** | `ap-south-1` (Bedrock: `us-east-1`) |
 | **Bedrock Model** | `amazon.nova-micro-v1:0` |
