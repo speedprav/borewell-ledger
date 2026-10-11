@@ -18,7 +18,7 @@ All data currently displayed is **simulated demo data** for demonstration purpos
 
 | | |
 |---|---|
-| **Live App (HTTPS)** | https://main.d3kbqo47f82ouc.amplifyapp.com |
+| **Live App (HTTPS)** | https://main.d3kbqo47f82ouc.amplifyapp.com (Project is shifted to amplify due to issue with cloudfront)|
 | **API URL** | https://r0kskruke2.execute-api.ap-south-1.amazonaws.com/prod |
 | **Region** | `ap-south-1` (Bedrock: `us-east-1`) |
 | **Bedrock Model** | `amazon.nova-micro-v1:0` |
